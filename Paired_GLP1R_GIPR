@@ -1,0 +1,116 @@
+# Load libraries
+library(readxl)
+install.packages("writexl")
+library(writexl)
+
+# Set working directory
+setwd("/Users/gabrielanguenajones/Documents/")
+
+# Load dataset
+data <- read_excel("All_Triplicate_Ct_Stats.xlsx")
+
+# Fix column names for easy handling
+names(data) <- make.names(names(data))
+print(names(data))
+
+# Subset triplicates for A CDNA
+glp1r_a <- as.numeric(data[data$Sample == "A CDNA" & data$Target.Gene == "GLP1R", c("Replicate.1", "Replicate.2", "Replicate.3")])
+gipr_a <- as.numeric(data[data$Sample == "A CDNA" & data$Target.Gene == "GIPR", c("Replicate.1", "Replicate.2", "Replicate.3")])
+hprt1_a <- as.numeric(data[data$Sample == "A CDNA" & data$Target.Gene == "HPRT1", c("Replicate.1", "Replicate.2", "Replicate.3")])
+
+# Subset triplicates for B CDNA
+glp1r_b <- as.numeric(data[data$Sample == "B CDNA" & data$Target.Gene == "GLP1R", c("Replicate.1", "Replicate.2", "Replicate.3")])
+gipr_b <- as.numeric(data[data$Sample == "B CDNA" & data$Target.Gene == "GIPR", c("Replicate.1", "Replicate.2", "Replicate.3")])
+hprt1_b <- as.numeric(data[data$Sample == "B CDNA" & data$Target.Gene == "HPRT1", c("Replicate.1", "Replicate.2", "Replicate.3")])
+
+# Create empty data frame for results
+results <- data.frame(
+  Comparison = character(),
+  Shapiro_p = numeric(),
+  Ttest_t = numeric(),
+  Ttest_df = numeric(),
+  Ttest_p = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# A CDNA: GLP1R vs GIPR
+diff <- glp1r_a - gipr_a
+shapiro_res <- shapiro.test(diff)
+ttest_res <- t.test(glp1r_a, gipr_a, paired = TRUE)
+results <- rbind(results, data.frame(
+  Comparison = "A CDNA: GLP1R vs GIPR",
+  Shapiro_p = shapiro_res$p.value,
+  Ttest_t = ttest_res$statistic,
+  Ttest_df = ttest_res$parameter,
+  Ttest_p = ttest_res$p.value
+))
+
+# A CDNA: GLP1R vs HPRT1
+diff <- glp1r_a - hprt1_a
+shapiro_res <- shapiro.test(diff)
+ttest_res <- t.test(glp1r_a, hprt1_a, paired = TRUE)
+results <- rbind(results, data.frame(
+  Comparison = "A CDNA: GLP1R vs HPRT1",
+  Shapiro_p = shapiro_res$p.value,
+  Ttest_t = ttest_res$statistic,
+  Ttest_df = ttest_res$parameter,
+  Ttest_p = ttest_res$p.value
+))
+
+# A CDNA: GIPR vs HPRT1
+diff <- gipr_a - hprt1_a
+shapiro_res <- shapiro.test(diff)
+ttest_res <- t.test(gipr_a, hprt1_a, paired = TRUE)
+results <- rbind(results, data.frame(
+  Comparison = "A CDNA: GIPR vs HPRT1",
+  Shapiro_p = shapiro_res$p.value,
+  Ttest_t = ttest_res$statistic,
+  Ttest_df = ttest_res$parameter,
+  Ttest_p = ttest_res$p.value
+))
+
+# B CDNA: GLP1R vs GIPR
+diff <- glp1r_b - gipr_b
+shapiro_res <- shapiro.test(diff)
+ttest_res <- t.test(glp1r_b, gipr_b, paired = TRUE)
+results <- rbind(results, data.frame(
+  Comparison = "B CDNA: GLP1R vs GIPR",
+  Shapiro_p = shapiro_res$p.value,
+  Ttest_t = ttest_res$statistic,
+  Ttest_df = ttest_res$parameter,
+  Ttest_p = ttest_res$p.value
+))
+
+# B CDNA: GLP1R vs HPRT1
+diff <- glp1r_b - hprt1_b
+shapiro_res <- shapiro.test(diff)
+ttest_res <- t.test(glp1r_b, hprt1_b, paired = TRUE)
+results <- rbind(results, data.frame(
+  Comparison = "B CDNA: GLP1R vs HPRT1",
+  Shapiro_p = shapiro_res$p.value,
+  Ttest_t = ttest_res$statistic,
+  Ttest_df = ttest_res$parameter,
+  Ttest_p = ttest_res$p.value
+))
+
+# B CDNA: GIPR vs HPRT1
+diff <- gipr_b - hprt1_b
+shapiro_res <- shapiro.test(diff)
+ttest_res <- t.test(gipr_b, hprt1_b, paired = TRUE)
+results <- rbind(results, data.frame(
+  Comparison = "B CDNA: GIPR vs HPRT1",
+  Shapiro_p = shapiro_res$p.value,
+  Ttest_t = ttest_res$statistic,
+  Ttest_df = ttest_res$parameter,
+  Ttest_p = ttest_res$p.value
+))
+
+# View results table
+print(results)
+
+# Save results to Excel
+write_xlsx(results, "Paired_Ttest_Shapiro_Results.xlsx")
+
+
+
+
