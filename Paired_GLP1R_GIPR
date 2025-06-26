@@ -1,116 +1,185 @@
 # Load libraries
 library(readxl)
-install.packages("writexl")
+library(tidyr)
+library(dplyr)
 library(writexl)
+library(broom)
 
-# Set working directory
-setwd("/Users/gabrielanguenajones/Documents/")
+# Set your working directory
+setwd("/Volumes/Elements/")  # Adjust if needed
 
-# Load dataset
+# Load your data
 data <- read_excel("All_Triplicate_Ct_Stats.xlsx")
+colnames(data) <- make.names(colnames(data))  # Clean column names
 
-# Fix column names for easy handling
-names(data) <- make.names(names(data))
-print(names(data))
-
-# Subset triplicates for A CDNA
-glp1r_a <- as.numeric(data[data$Sample == "A CDNA" & data$Target.Gene == "GLP1R", c("Replicate.1", "Replicate.2", "Replicate.3")])
-gipr_a <- as.numeric(data[data$Sample == "A CDNA" & data$Target.Gene == "GIPR", c("Replicate.1", "Replicate.2", "Replicate.3")])
-hprt1_a <- as.numeric(data[data$Sample == "A CDNA" & data$Target.Gene == "HPRT1", c("Replicate.1", "Replicate.2", "Replicate.3")])
-
-# Subset triplicates for B CDNA
-glp1r_b <- as.numeric(data[data$Sample == "B CDNA" & data$Target.Gene == "GLP1R", c("Replicate.1", "Replicate.2", "Replicate.3")])
-gipr_b <- as.numeric(data[data$Sample == "B CDNA" & data$Target.Gene == "GIPR", c("Replicate.1", "Replicate.2", "Replicate.3")])
-hprt1_b <- as.numeric(data[data$Sample == "B CDNA" & data$Target.Gene == "HPRT1", c("Replicate.1", "Replicate.2", "Replicate.3")])
-
-# Create empty data frame for results
-results <- data.frame(
-  Comparison = character(),
-  Shapiro_p = numeric(),
-  Ttest_t = numeric(),
-  Ttest_df = numeric(),
-  Ttest_p = numeric(),
-  stringsAsFactors = FALSE
-)
-
-# A CDNA: GLP1R vs GIPR
-diff <- glp1r_a - gipr_a
-shapiro_res <- shapiro.test(diff)
-ttest_res <- t.test(glp1r_a, gipr_a, paired = TRUE)
-results <- rbind(results, data.frame(
-  Comparison = "A CDNA: GLP1R vs GIPR",
-  Shapiro_p = shapiro_res$p.value,
-  Ttest_t = ttest_res$statistic,
-  Ttest_df = ttest_res$parameter,
-  Ttest_p = ttest_res$p.value
-))
-
-# A CDNA: GLP1R vs HPRT1
-diff <- glp1r_a - hprt1_a
-shapiro_res <- shapiro.test(diff)
-ttest_res <- t.test(glp1r_a, hprt1_a, paired = TRUE)
-results <- rbind(results, data.frame(
-  Comparison = "A CDNA: GLP1R vs HPRT1",
-  Shapiro_p = shapiro_res$p.value,
-  Ttest_t = ttest_res$statistic,
-  Ttest_df = ttest_res$parameter,
-  Ttest_p = ttest_res$p.value
-))
-
-# A CDNA: GIPR vs HPRT1
-diff <- gipr_a - hprt1_a
-shapiro_res <- shapiro.test(diff)
-ttest_res <- t.test(gipr_a, hprt1_a, paired = TRUE)
-results <- rbind(results, data.frame(
-  Comparison = "A CDNA: GIPR vs HPRT1",
-  Shapiro_p = shapiro_res$p.value,
-  Ttest_t = ttest_res$statistic,
-  Ttest_df = ttest_res$parameter,
-  Ttest_p = ttest_res$p.value
-))
-
-# B CDNA: GLP1R vs GIPR
-diff <- glp1r_b - gipr_b
-shapiro_res <- shapiro.test(diff)
-ttest_res <- t.test(glp1r_b, gipr_b, paired = TRUE)
-results <- rbind(results, data.frame(
-  Comparison = "B CDNA: GLP1R vs GIPR",
-  Shapiro_p = shapiro_res$p.value,
-  Ttest_t = ttest_res$statistic,
-  Ttest_df = ttest_res$parameter,
-  Ttest_p = ttest_res$p.value
-))
-
-# B CDNA: GLP1R vs HPRT1
-diff <- glp1r_b - hprt1_b
-shapiro_res <- shapiro.test(diff)
-ttest_res <- t.test(glp1r_b, hprt1_b, paired = TRUE)
-results <- rbind(results, data.frame(
-  Comparison = "B CDNA: GLP1R vs HPRT1",
-  Shapiro_p = shapiro_res$p.value,
-  Ttest_t = ttest_res$statistic,
-  Ttest_df = ttest_res$parameter,
-  Ttest_p = ttest_res$p.value
-))
-
-# B CDNA: GIPR vs HPRT1
-diff <- gipr_b - hprt1_b
-shapiro_res <- shapiro.test(diff)
-ttest_res <- t.test(gipr_b, hprt1_b, paired = TRUE)
-results <- rbind(results, data.frame(
-  Comparison = "B CDNA: GIPR vs HPRT1",
-  Shapiro_p = shapiro_res$p.value,
-  Ttest_t = ttest_res$statistic,
-  Ttest_df = ttest_res$parameter,
-  Ttest_p = ttest_res$p.value
-))
-
-# View results table
-print(results)
-
-# Save results to Excel
-write_xlsx(results, "Paired_Ttest_Shapiro_Results.xlsx")
+# Function to run repeated-measures ANOVA + post hoc tests
+run_rm_anova <- function(sample_name, output_file) {
+  # Reshape data to long format
+  df <- data %>%
+    dplyr::filter(Sample == sample_name) %>%
+    dplyr::select(Target.Gene, starts_with("Replicate")) %>%
+    tidyr::pivot_longer(cols = starts_with("Replicate"),
+                        names_to = "Replicate",
+                        values_to = "Ct") %>%
+    dplyr::mutate(Subject = factor(Replicate),
+                  Target.Gene = factor(Target.Gene))
+  
+  # Run repeated-measures ANOVA
+  model <- aov(Ct ~ Target.Gene + Error(Subject/Target.Gene), data = df)
+  cat("### Repeated-Measures ANOVA for", sample_name, "###\n")
+  print(summary(model))
+  
+  # Post hoc paired t-tests with Bonferroni correction
+  genes <- unique(df$Target.Gene)
+  combos <- combn(genes, 2, simplify = FALSE)
+  posthoc <- data.frame(Gene1 = character(), Gene2 = character(),
+                        t = numeric(), p = numeric(), stringsAsFactors = FALSE)
+  for (pair in combos) {
+    x <- dplyr::filter(df, Target.Gene == pair[1]) %>%
+      dplyr::arrange(Subject) %>% dplyr::pull(Ct)
+    y <- dplyr::filter(df, Target.Gene == pair[2]) %>%
+      dplyr::arrange(Subject) %>% dplyr::pull(Ct)
+    t_result <- t.test(x, y, paired = TRUE)
+    posthoc <- rbind(posthoc, data.frame(
+      Gene1 = pair[1],
+      Gene2 = pair[2],
+      t = as.numeric(t_result$statistic),
+      p = as.numeric(t_result$p.value)
+    ))
+  }
+  posthoc$p_bonf <- p.adjust(posthoc$p, method = "bonferroni")
+  print(posthoc)
+  
+  # Save to Excel
+  write_xlsx(list(
+    "ANOVA Summary" = broom::tidy(summary(model)),
+    "Post Hoc Tests" = posthoc
+  ), output_file)
+}
 
 
+# Run for A CDNA
+run_rm_anova("A CDNA", "A_CDna_RM_ANOVA.xlsx")
+
+# Function to run repeated-measures ANOVA + post hoc tests on Sample B
+run_rm_anova <- function(sample_name, output_file) {
+  # Reshape data to long format
+  df <- data %>%
+    dplyr::filter(Sample == sample_name) %>%
+    dplyr::select(Target.Gene, starts_with("Replicate")) %>%
+    tidyr::pivot_longer(cols = starts_with("Replicate"),
+                        names_to = "Replicate",
+                        values_to = "Ct") %>%
+    dplyr::mutate(Subject = factor(Replicate),
+                  Target.Gene = factor(Target.Gene))
+  
+  # Run repeated-measures ANOVA
+  model <- aov(Ct ~ Target.Gene + Error(Subject/Target.Gene), data = df)
+  cat("### Repeated-Measures ANOVA for", sample_name, "###\n")
+  print(summary(model))
+  
+  # Post hoc paired t-tests with Bonferroni correction
+  genes <- unique(df$Target.Gene)
+  combos <- combn(genes, 2, simplify = FALSE)
+  posthoc <- data.frame(Gene1 = character(), Gene2 = character(),
+                        t = numeric(), p = numeric(), stringsAsFactors = FALSE)
+  for (pair in combos) {
+    x <- dplyr::filter(df, Target.Gene == pair[1]) %>%
+      dplyr::arrange(Subject) %>% dplyr::pull(Ct)
+    y <- dplyr::filter(df, Target.Gene == pair[2]) %>%
+      dplyr::arrange(Subject) %>% dplyr::pull(Ct)
+    t_result <- t.test(x, y, paired = TRUE)
+    posthoc <- rbind(posthoc, data.frame(
+      Gene1 = pair[1],
+      Gene2 = pair[2],
+      t = as.numeric(t_result$statistic),
+      p = as.numeric(t_result$p.value)
+    ))
+  }
+  posthoc$p_bonf <- p.adjust(posthoc$p, method = "bonferroni")
+  print(posthoc)
+  
+  # Save output
+  anova_txt_path <- gsub(".xlsx", "_ANOVA.txt", output_file)
+  sink(anova_txt_path)
+  cat("Repeated-Measures ANOVA for", sample_name, "\n")
+  print(summary(model))
+  sink()
+  
+  write_xlsx(list(
+    "Post Hoc Tests" = posthoc
+  ), output_file)
+}
+
+# Run the function for B CDNA
+run_rm_anova("B CDNA", "B_CDna_RM_ANOVA.xlsx")
+
+# testing for normality ----
+
+# Load required libraries
+library(readxl)
+library(dplyr)
+library(tidyr)
+
+# Load your data
+data <- read_excel("All_Triplicate_Ct_Stats.xlsx")
+colnames(data) <- make.names(colnames(data))  # Clean column names
+
+# Function to run repeated-measures ANOVA and check residual normality
+check_normality <- function(sample_name) {
+  # Prepare long-format data
+  df <- data %>%
+    dplyr::filter(Sample == sample_name) %>%
+    dplyr::select(Target.Gene, starts_with("Replicate")) %>%
+    tidyr::pivot_longer(cols = starts_with("Replicate"),
+                        names_to = "Replicate",
+                        values_to = "Ct") %>%
+    dplyr::mutate(
+      Subject = factor(Replicate),
+      Target.Gene = factor(Target.Gene)
+    ) %>%
+    # Remove any NA values that might cause issues
+    dplyr::filter(!is.na(Ct))
+  
+  # Check if we have enough data
+  if(nrow(df) < 3) {
+    cat("Not enough data for", sample_name, "\n")
+    return(NULL)
+  }
+  
+  # Run repeated-measures ANOVA
+  model <- aov(Ct ~ Target.Gene + Error(Subject/Target.Gene), data = df)
+  
+  # Extract residuals properly
+  # Method 1: Try to get residuals from the Within component
+  if("Within" %in% names(model) && !is.null(model[["Within"]]$residuals)) {
+    residuals_vec <- as.numeric(model[["Within"]]$residuals)
+    residuals_vec <- residuals_vec[!is.na(residuals_vec)]
+  } else {
+    # Method 2: Alternative approach using a simpler model
+    simple_model <- aov(Ct ~ Target.Gene, data = df)
+    residuals_vec <- as.numeric(residuals(simple_model))
+    residuals_vec <- residuals_vec[!is.na(residuals_vec)]
+  }
+  
+  # Check if we have valid residuals
+  if(length(residuals_vec) < 3) {
+    cat("Not enough residuals for normality test for", sample_name, "\n")
+    return(NULL)
+  }
+  
+  # Shapiro-Wilk normality test
+  cat("Shapiro-Wilk test for", sample_name, "residuals:\n")
+  cat("Number of residuals:", length(residuals_vec), "\n")
+  print(shapiro.test(residuals_vec))
+  cat("\n---------------------------\n")
+  
+  # Optional: return the residuals for further analysis
+  return(residuals_vec)
+}
+
+# Run for both samples
+residuals_A <- check_normality("A CDNA")
+residuals_B <- check_normality("B CDNA")
 
 
